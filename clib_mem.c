@@ -33,6 +33,9 @@
 #ifndef CLIB_MEM_TRACE_ALLOCS
 
 void *memAlloc(size_t objectSize, size_t objectCount) {
+    const size_t size = objectSize * objectCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || size / objectCount == objectSize);
     void *block = malloc(objectSize * objectCount);
     if (block == NULL) {
         memFail("Out of memory.\n");
@@ -69,13 +72,15 @@ void *memAllocZeroedBytes(size_t byteCount) {
 }
 
 void *memExpand(void *block, size_t objectSize, size_t newCount) {
-    memAssert(objectSize != 0);
-    memAssert(newCount != 0);
+    const size_t size = objectSize * newCount;
+    memAssert(size != 0);
+    // Detect overflow
+    memAssert(size / newCount == objectSize);
     void *newBlock;
     if (block == NULL) {
-        newBlock = malloc(objectSize * newCount);
+        newBlock = malloc(size);
     } else {
-        newBlock = realloc(block, objectSize * newCount);
+        newBlock = realloc(block, size);
     }
     if (newBlock == NULL) {
         memFail("Out of memory.\n");
@@ -99,11 +104,16 @@ void *memExpandBytes(void *block, size_t newByteCount) {
     return newBlock;
 }
 
-void *memShrink(void *block, size_t objectSize, size_t newObjectCount) {
+void *memShrink(void *block, size_t objectSize, size_t newCount) {
+    size_t newSize = objectSize * newCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || newSize / newCount == objectSize);
+    if (newSize == 0) {
+        memFree(block);
+        return NULL;
+    }
     memAssert(block != NULL);
-    memAssert(objectSize != 0);
-    memAssert(newObjectCount != 0);
-    void *newBlock = realloc(block, objectSize * newObjectCount);
+    void *newBlock = realloc(block, newSize);
     if (newBlock == NULL) {
         return block;
     }
@@ -111,8 +121,11 @@ void *memShrink(void *block, size_t objectSize, size_t newObjectCount) {
 }
 
 void *memShrinkBytes(void *block, size_t newByteCount) {
+    if (newByteCount == 0) {
+        memFree(block);
+        return NULL;
+    }
     memAssert(block != NULL);
-    memAssert(newByteCount != 0);
     void *newBlock = realloc(block, newByteCount);
     if (newBlock == NULL) {
         return block;
@@ -127,7 +140,10 @@ void *memChange(void *block, size_t objectSize, size_t objectCount) {
         memFree(block);
         return NULL;
     } else {
-        void *newBlock = realloc(block, objectSize * objectCount);
+        const size_t size = objectSize * objectCount;
+        // Detect overflow
+        memAssert(objectSize == 0 || size / objectCount == objectSize);
+        void *newBlock = realloc(block, size);
         if (newBlock == NULL) {
             memFail("Out of memory.\n");
             return NULL;
@@ -168,7 +184,7 @@ void memFree(void *block) {
 #define threadMutexLock(...) true
 #define threadMutexUnlock(...) true
 #else
-#include "nv_threads.h"
+#include "clib_threads.h"
 static ThreadMutex g_memMutex = ThreadMutexInitializer;
 #endif // !CLIB_MEM_NO_THREADS
 
@@ -449,24 +465,17 @@ void *_memAlloc(
     const char *file
 ) {
     memAssert(threadMutexLock(&g_memMutex));
-    void *block = _memAllocFilled(
-        objectCount * objectSize,
-        _garbageByte,
-        line,
-        file
-    );
+    const size_t size = objectSize * objectCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    void *block = _memAllocFilled(size, _garbageByte, line, file);
     memAssert(threadMutexUnlock(&g_memMutex));
     return block;
 }
 
 void *_memAllocBytes(size_t byteCount, uint32_t line, const char *file) {
     memAssert(threadMutexLock(&g_memMutex));
-    void *block = _memAllocFilled(
-        byteCount,
-        _garbageByte,
-        line,
-        file
-    );
+    void *block = _memAllocFilled(byteCount, _garbageByte, line, file);
     memAssert(threadMutexUnlock(&g_memMutex));
     return block;
 }
@@ -478,24 +487,17 @@ void *_memAllocZeroed(
     const char *file
 ) {
     memAssert(threadMutexLock(&g_memMutex));
-    void *block = _memAllocFilled(
-        objectCount * objectSize,
-        0,
-        line,
-        file
-    );
+    const size_t size = objectSize * objectCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    void *block = _memAllocFilled(size, 0, line, file);
     memAssert(threadMutexUnlock(&g_memMutex));
     return block;
 }
 
 void *_memAllocZeroedBytes(size_t byteCount, uint32_t line, const char *file) {
     memAssert(threadMutexLock(&g_memMutex));
-    void *block = _memAllocFilled(
-        byteCount,
-        0,
-        line,
-        file
-    );
+    void *block = _memAllocFilled(byteCount, 0, line, file);
     memAssert(threadMutexUnlock(&g_memMutex));
     return block;
 }
@@ -510,11 +512,20 @@ static void *_memChangeBytesUnchecked(
         _memFreeUnchecked(block);
         return NULL;
     }
+    MemHeader *header = (MemHeader *)block - 1;
     void *newBlock = _memAllocFilled(byteCount, _garbageByte, line, file);
-    if (block == NULL) {
+
+    // Always succeed when shrinking, this mirrors the common behaviour of
+    // realloc even if it is not required.
+    if (newBlock == NULL && (block == NULL || header->blockSize >= byteCount)) {
+        return block;
+    } else if (newBlock == NULL) {
+        memFail("Out of memory.\n");
+        return NULL;
+    } else if (block == NULL) {
         return newBlock;
     }
-    MemHeader *header = (MemHeader *)block - 1;
+
     size_t minSize = byteCount < header->blockSize
         ? byteCount
         : header->blockSize;
@@ -525,12 +536,15 @@ static void *_memChangeBytesUnchecked(
 
 void *_memExpand(
     void *block,
-    size_t newObjectCount,
+    size_t newCount,
     size_t objectSize,
     uint32_t line,
     const char *file
 ) {
-    return _memExpandBytes(block, newObjectCount * objectSize, line, file);
+    const size_t size = objectSize * newCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || size / newCount == objectSize);
+    return _memExpandBytes(block, size, line, file);
 }
 
 void *_memExpandBytes(
@@ -544,7 +558,7 @@ void *_memExpandBytes(
     MemHeader *header = (MemHeader *)block - 1;
     if (block != NULL && !_mhContains(g_memRoot, header)) {
         memLog("memExpand: invalid pointer\n");
-        memLog("   at %s:%x"PRIu32"\n", file, line);
+        memLog("   at %s:%"PRIu32"\n", file, line);
         abort();
     }
     if (block != NULL) {
@@ -563,12 +577,15 @@ void *_memExpandBytes(
 
 void *_memShrink(
     void *block,
-    size_t newObjectCount,
+    size_t newCount,
     size_t objectSize,
     uint32_t line,
     const char *file
 ) {
-    return _memShrinkBytes(block, newObjectCount * objectSize, line, file);
+    const size_t size = objectSize * newCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || size / newCount == objectSize);
+    return _memShrinkBytes(block, size, line, file);
 }
 
 void *_memShrinkBytes(
@@ -577,8 +594,15 @@ void *_memShrinkBytes(
     uint32_t line,
     const char *file
 ) {
-    memAssert(newByteCount != 0);
-    memAssert(block != NULL);
+    if (block == NULL) {
+        if (newByteCount == 0) {
+            return NULL;
+        } else {
+            memLog("memShrink: expanding NULL ptr to (%zi)\n", newByteCount);
+            memLog("   at %s:%"PRIu32"\n", file, line);
+            abort();
+        }
+    }
     memAssert(threadMutexLock(&g_memMutex));
     MemHeader *header = (MemHeader *)block - 1;
     if (!_mhContains(g_memRoot, header)) {
@@ -586,9 +610,7 @@ void *_memShrinkBytes(
         memLog("   at %s:%"PRIu32"\n", file, line);
         abort();
     }
-    if (block != NULL) {
-        _mhCheckIntegrity(header);
-    }
+    _mhCheckIntegrity(header);
     if (header->blockSize < newByteCount) {
         memLog("memShrink: new size (%zi) is bigger\n", newByteCount);
         memLog("   at %s:%"PRIu32"\n", file, line);
@@ -607,7 +629,10 @@ void *_memChange(
     uint32_t line,
     const char *file
 ) {
-    return _memChangeBytes(block, objectCount * objectSize, line, file);
+    const size_t size = objectSize * objectCount;
+    // Detect overflow
+    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    return _memChangeBytes(block, size, line, file);
 }
 
 void *_memChangeBytes(
@@ -627,9 +652,7 @@ void *_memChangeBytes(
         memLog("   at %s:%"PRIu32"\n", file, line);
         abort();
     }
-    if (block != NULL) {
-        _mhCheckIntegrity(header);
-    }
+    _mhCheckIntegrity(header);
     if (!_mhCheckBounds(header)) {
         memLog("memChange: out of bounds write\n");
         memLog("   at %s:%"PRIu32"\n", file, line);
@@ -661,9 +684,7 @@ void _memFree(void *block, uint32_t line, const char *file) {
         memLog("   at %s:%"PRIu32"\n", file, line);
         abort();
     }
-    if (block != NULL) {
-        _mhCheckIntegrity(header);
-    }
+    _mhCheckIntegrity(header);
     if (!_mhCheckBounds(header)) {
         memLog("memFree: out of bounds write\n");
         memLog("   at %s:%"PRIu32"\n", file, line);

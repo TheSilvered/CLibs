@@ -1,3 +1,31 @@
+/*
+Memory allocation library.
+
+Macros:
+- define `CLIB_MEM_STDLIB_FUNCS` to add macros that replace standard `malloc`,
+  `calloc`, `realloc` and `free` with their equivalent in the library.
+- define `CLIB_MEM_TRACE_ALLOCS` to trace all allocations. In this mode the
+  library depends by default on `clib_threads` to be thread-safe but this can be
+  disabled.
+- define `CLIB_MEM_NO_THREADS` to remove dependency on `clib_threads`. However
+  the library is no longer thread-safe.
+- define `CLIB_MEM_ABORT_ON_FAIL` to log "Out of memory." and abort the program
+  if a memory allocation fails.
+
+Function macros:
+- define `memFail(...)` to change the behaviour when a memory allocation fails.
+  The arguments are passed as if it were `printf`.
+  By default nothing happens and `NULL` is returned.
+  When `CLIB_MEM_ABORT_ON_FAIL` is defined an internal definition is used to
+  abort the program. Any user-defined `memFail` always overrides the internal
+  definition.
+- define `memLog(...)` to change the logging function.
+  The arguments are passed as if it were `printf`.
+  By default it uses `fprintf` and prints to `stderr`.
+- define `memAssert` to change assertions. By default it is the standard
+  `assert`.
+*/
+
 #ifndef CLIB_MEM_H_
 #define CLIB_MEM_H_
 
@@ -13,13 +41,13 @@
 
 #ifndef CLIB_MEM_TRACE_ALLOCS
 
-// Allocate a new chunck of memory.
+// Allocate a new chunk of memory.
 void *memAlloc(size_t objectCount, size_t objectSize);
-// Allocate a new chunck of memory given the size in bytes.
+// Allocate a new chunk of memory given the size in bytes.
 void *memAllocBytes(size_t byteCount);
-// Allocate a new chunck of memory that is zeroed.
+// Allocate a new chunk of memory that is zeroed.
 void *memAllocZeroed(size_t objectCount, size_t objectSize);
-// Allocate a new chunck of memory that is zeroed.
+// Allocate a new chunk of memory that is zeroed.
 void *memAllocZeroedBytes(size_t byteCount);
 
 // Increase the size of a memory block.
@@ -29,20 +57,22 @@ void *memExpandBytes(void *block, size_t newByteCount);
 
 // Decrease the size of a memory block.
 // If the block cannot be shrunk the block itself is returned.
+// Shrinking to a size of 0 is equivalent to freeing the block.
 void *memShrink(void *block, size_t newObjectCount, size_t objectSize);
 // Decrease the size of a memory block given the new size in bytes.
 // If the block cannot be shrunk the block itself is returned.
+// Shrinking to a size of 0 is equivalent to freeing the block.
 void *memShrinkBytes(void *block, size_t newByteCount);
 
 // Change the state of `block` depending on `objectCount`.
 // If `block == NULL` new memory will be allocated.
-// If `block != NULL` and `objectCount == 0` the block will be free'd.
+// If `block != NULL` and `objectCount == 0` the block will be freed.
 // Otherwise the block is reallocated.
 void *memChange(void *block, size_t objectCount, size_t objectSize);
 
 // Change the state of `block` depending on `byteCount`.
 // If `block == NULL` new memory will be allocated.
-// If `block != NULL` and `byteCount == 0` the block will be free'd.
+// If `block != NULL` and `byteCount == 0` the block will be freed.
 // Otherwise the block is reallocated.
 void *memChangeBytes(void *block, size_t byteCount);
 
@@ -70,6 +100,9 @@ void memFree(void *block);
 
 #define memAllocZeroed(objectCount, objectSize)                                \
     _memAllocZeroed(objectCount, objectSize, __LINE__, __FILE__)
+
+#define memAllocZeroedBytes(byteCount)                           \
+    _memAllocZeroedBytes(byteCount, __LINE__, __FILE__)
 
 #define memExpand(block, newObjectCount, objectSize)                           \
     _memExpand(block, newObjectCount, objectSize, __LINE__, __FILE__)
@@ -157,10 +190,10 @@ bool memHasAllocs(void);
 void memPrintAllocs(void);
 // Free all allocations.
 void memFreeAllAllocs(void);
-// Check wether an out-of-bounds write happend to a block.
+// Check whether an out-of-bounds write happend to a block.
 #define memCheckBounds(block) _memCheckBounds(block, __LINE__, __FILE__)
 void _memCheckBounds(void *block, uint32_t line, const char *file);
-// Chcek if a pointer points to a heap-allocated memory block.
+// Check if a pointer points to a heap-allocated memory block.
 bool memIsAlloc(void *block);
 
 #endif // !CLIB_MEM_TRACE_ALLOCS
