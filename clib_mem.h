@@ -1,6 +1,8 @@
 /*
 Memory allocation library.
 
+License: MIT license, see the bottom of the file.
+
 Macros:
 - define `CLIB_MEM_STDLIB_FUNCS` to add macros that replace standard `malloc`,
   `calloc`, `realloc` and `free` with their equivalent in the library.
@@ -101,7 +103,7 @@ void memFree(void *block);
 #define memAllocZeroed(objectCount, objectSize)                                \
     _memAllocZeroed(objectCount, objectSize, __LINE__, __FILE__)
 
-#define memAllocZeroedBytes(byteCount)                           \
+#define memAllocZeroedBytes(byteCount)                                         \
     _memAllocZeroedBytes(byteCount, __LINE__, __FILE__)
 
 #define memExpand(block, newObjectCount, objectSize)                           \
@@ -190,7 +192,7 @@ bool memHasAllocs(void);
 void memPrintAllocs(void);
 // Free all allocations.
 void memFreeAllAllocs(void);
-// Check whether an out-of-bounds write happend to a block.
+// Check whether an out-of-bounds write happened to a block.
 #define memCheckBounds(block) _memCheckBounds(block, __LINE__, __FILE__)
 void _memCheckBounds(void *block, uint32_t line, const char *file);
 // Check if a pointer points to a heap-allocated memory block.
@@ -199,3 +201,27 @@ bool memIsAlloc(void *block);
 #endif // !CLIB_MEM_TRACE_ALLOCS
 
 #endif // !CLIB_MEM_H_
+
+/*
+MIT License
+
+Copyright (c) 2026 Davide Taffarello
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
