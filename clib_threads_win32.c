@@ -6,9 +6,7 @@ bool threadCreate(Thread *thread, ThreadRoutine routine, void *arg) {
     if (handle == NULL) {
         return false;
     }
-    if (thread != NULL) {
-        *thread = handle;
-    }
+    *thread = handle;
     return true;
 }
 
@@ -27,13 +25,12 @@ bool threadJoin(Thread thread, ThreadRet *status) {
     if (WaitForSingleObject(thread, INFINITE) == WAIT_FAILED) {
         return false;
     }
-    if (status == NULL) {
-        return true;
-    }
 
-    if (GetExitCodeThread(thread, status) == 0) {
+    if (status != NULL && GetExitCodeThread(thread, status) == 0) {
+        CloseHandle(thread);
         return false;
     }
+    CloseHandle(thread);
     return true;
 }
 
@@ -42,37 +39,21 @@ void threadExit(ThreadRet status) {
 }
 
 bool threadMutexInit(ThreadMutex *mutex) {
-    InitializeSRWLock(&mutex->_lock);
-    mutex->_owner = 0;
+    InitializeSRWLock(mutex);
     return true;
 }
 
 bool threadMutexDestroy(ThreadMutex *mutex) {
-    if (mutex->_owner != 0) {
-        SetLastError(ERROR_BUSY);
-        return false;
-    }
     return true; // no destructor for SRWLOCK
 }
 
 bool threadMutexLock(ThreadMutex *mutex) {
-    DWORD id = threadGetCurrID();
-    if (mutex->_owner == id) {
-        SetLastError(ERROR_POSSIBLE_DEADLOCK);
-        return false;
-    }
-    AcquireSRWLockExclusive(&mutex->_lock);
-    mutex->_owner = id;
+    AcquireSRWLockExclusive(mutex);
     return true;
 }
 
 ThreadLockResult threadMutexTryLock(ThreadMutex *mutex) {
-    DWORD id = threadGetCurrID();
-    if (mutex->_owner == id) {
-        SetLastError(ERROR_POSSIBLE_DEADLOCK);
-        return ThreadLockResult_error;
-    } else if (TryAcquireSRWLockExclusive(&mutex->_lock) == TRUE) {
-        mutex->_owner = id;
+    if (TryAcquireSRWLockExclusive(mutex)) {
         return ThreadLockResult_success;
     } else {
         return ThreadLockResult_busy;
@@ -80,11 +61,6 @@ ThreadLockResult threadMutexTryLock(ThreadMutex *mutex) {
 }
 
 bool threadMutexUnlock(ThreadMutex *mutex) {
-    if (mutex->_owner != threadGetCurrID()) {
-        SetLastError(ERROR_NOT_OWNER);
-        return false;
-    }
-    mutex->_owner = 0;
-    ReleaseSRWLockExclusive(&mutex->_lock);
+    ReleaseSRWLockExclusive(mutex);
     return true;
 }
