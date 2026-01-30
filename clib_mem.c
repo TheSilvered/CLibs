@@ -39,7 +39,7 @@
 void *memAlloc(size_t objectSize, size_t objectCount) {
     const size_t size = objectSize * objectCount;
     // Detect overflow
-    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    memAssert(size == 0 || size / objectCount == objectSize);
     void *block = malloc(objectSize * objectCount);
     if (block == NULL) {
         memFail("Out of memory.\n");
@@ -111,7 +111,7 @@ void *memExpandBytes(void *block, size_t newByteCount) {
 void *memShrink(void *block, size_t objectSize, size_t newCount) {
     size_t newSize = objectSize * newCount;
     // Detect overflow
-    memAssert(objectSize == 0 || newSize / newCount == objectSize);
+    memAssert(newSize == 0 || newSize / newCount == objectSize);
     if (newSize == 0) {
         memFree(block);
         return NULL;
@@ -146,7 +146,7 @@ void *memChange(void *block, size_t objectSize, size_t objectCount) {
     } else {
         const size_t size = objectSize * objectCount;
         // Detect overflow
-        memAssert(objectSize == 0 || size / objectCount == objectSize);
+        memAssert(size == 0 || size / objectCount == objectSize);
         void *newBlock = realloc(block, size);
         if (newBlock == NULL) {
             memFail("Out of memory.\n");
@@ -471,7 +471,7 @@ void *_memAlloc(
     memAssert(threadMutexLock(&g_memMutex));
     const size_t size = objectSize * objectCount;
     // Detect overflow
-    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    memAssert(size == 0 || size / objectCount == objectSize);
     void *block = _memAllocFilled(size, _garbageByte, line, file);
     memAssert(threadMutexUnlock(&g_memMutex));
     return block;
@@ -493,7 +493,7 @@ void *_memAllocZeroed(
     memAssert(threadMutexLock(&g_memMutex));
     const size_t size = objectSize * objectCount;
     // Detect overflow
-    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    memAssert(size == 0 || size / objectCount == objectSize);
     void *block = _memAllocFilled(size, 0, line, file);
     memAssert(threadMutexUnlock(&g_memMutex));
     return block;
@@ -547,7 +547,7 @@ void *_memExpand(
 ) {
     const size_t size = objectSize * newCount;
     // Detect overflow
-    memAssert(objectSize == 0 || size / newCount == objectSize);
+    memAssert(size == 0 || size / newCount == objectSize);
     return _memExpandBytes(block, size, line, file);
 }
 
@@ -588,7 +588,7 @@ void *_memShrink(
 ) {
     const size_t size = objectSize * newCount;
     // Detect overflow
-    memAssert(objectSize == 0 || size / newCount == objectSize);
+    memAssert(size == 0 || size / newCount == objectSize);
     return _memShrinkBytes(block, size, line, file);
 }
 
@@ -635,7 +635,7 @@ void *_memChange(
 ) {
     const size_t size = objectSize * objectCount;
     // Detect overflow
-    memAssert(objectSize == 0 || size / objectCount == objectSize);
+    memAssert(size == 0 || size / objectCount == objectSize);
     return _memChangeBytes(block, size, line, file);
 }
 
