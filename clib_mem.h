@@ -7,8 +7,8 @@ Macros:
 - define `CLIB_MEM_STDLIB_FUNCS` to add macros that replace standard `malloc`,
   `calloc`, `realloc` and `free` with their equivalent in the library.
 - define `CLIB_MEM_TRACE_ALLOCS` to trace all allocations. In this mode the
-  library depends by default on `clib_threads` to be thread-safe but this can be
-  disabled.
+  library depends, by default, on `clib_threads` to be thread-safe but this can
+  be disabled.
 - define `CLIB_MEM_NO_THREADS` to remove dependency on `clib_threads`. However
   the library is no longer thread-safe.
 - define `CLIB_MEM_ABORT_ON_FAIL` to log "Out of memory." and abort the program
